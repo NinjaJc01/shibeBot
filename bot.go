@@ -1,13 +1,5 @@
 package main
 
-/*
-Assumptions:
-* People with roles have been seen by the mods
-* People will be asking in English
-* People without roles won't do it to meme etc (although meh, still funny)
-Features I wish I had:
-* Puppy Counter on asking when they'll be dmed but I'd need more verification/permissions
-*/
 import (
 	"bytes"
 	"encoding/json"
