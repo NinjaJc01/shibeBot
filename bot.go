@@ -34,7 +34,6 @@ func obtainShibe() []byte {
 	decoder := json.NewDecoder(resp.Body)
 	shibeURLArray := make([]string, 1)
 	decoder.Decode(&shibeURLArray)
-	log.Println(shibeURLArray[0])
 	shibePicResp, err := http.Get(shibeURLArray[0])
 	if err != nil {
 		log.Println("Err:", err.Error())
@@ -49,16 +48,21 @@ func obtainShibe() []byte {
 func shibeCacheWorker() {
 	for {
 		if len(shibeCache) != cacheSize {
-			log.Println("Insufficient Shibes Detected, accumulating")
 			//Then we need more shibes!
-			for i := 0; i < cacheSize-len(shibeCache); i++ {
+			shibesRequired := cacheSize-len(shibeCache)
+			log.Println("Insufficient Shibes Detected, accumulating. Required:",shibesRequired )
+			for i := 0; i < shibesRequired; i++ {
 				shibeCache <- obtainShibe()
-				time.Sleep(time.Millisecond * 50)
+				//time.Sleep(time.Millisecond * 50)
 			}
 			log.Println("Shibe cache rebuilt")
 		}
 	}
 }
+func pushCache() {
+	shibeCache <- obtainShibe()
+}
+
 func main() {
 	shibeCache = make(chan []byte, cacheSize)
 	var token string
@@ -79,8 +83,12 @@ func main() {
 	if err != nil {
 		log.Fatalln("Error: Couldn't open connection.", err.Error())
 	}
-	go shibeCacheWorker()
-	log.Println("Shibe cache worker started")
+	//go shibeCacheWorker()
+	//log.Println("Shibe cache worker started")
+	for i := 0; i < cacheSize; i++ {
+		pushCache()
+	}
+	log.Println("Shibe initialisation complete")
 	// Wait here until CTRL-C or other term signal is received.
 	log.Println("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
@@ -92,6 +100,7 @@ func main() {
 }
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	//Ignore messages from the bot itself
+	log.Println("Message:\t", m.Content)
 	startTime := time.Now()
 	if m.Author.ID == s.State.User.ID {
 		return
@@ -108,8 +117,10 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	//Find the guildmember attached to that user
 	allowed, inMap := channels[m.ChannelID]
 	if allowed && inMap { //If the bot should respond in that channel
+		log.Println("Cache empty:\t",(len(shibeCache)==0))
 		shibeReader := bytes.NewReader(<-shibeCache) //Pull shiba from the cache
 		s.ChannelFileSend(m.ChannelID, "shibe.jpg", shibeReader)
 		log.Println("Time to process:", time.Now().Sub(startTime))
+		go pushCache()
 	}
 }
